@@ -89,7 +89,7 @@ if CACHE_URL == "locmem://":
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "resource-booking-platform",
+            "LOCATION": "resource_booking_platform",
             "TIMEOUT": 60,
         }
     }

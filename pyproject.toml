@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "resource-booking-platform"
+name = "resource_booking_platform"
 version = "1.0.0"
 description = "Платформа бронирования ресурсов для нескольких организаций"
 requires-python = ">=3.12"

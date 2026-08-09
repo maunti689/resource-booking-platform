@@ -1,0 +1,96 @@
+x-app-environment: &app-environment
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-development-secret-change-me-32-chars}
+  DEBUG: ${DEBUG:-false}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,api}
+  DATABASE_URL: postgresql://booking:local-only-booking@postgres:5432/booking
+  CACHE_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  BOOKING_DEFAULT_MAX_DURATION_MINUTES: ${BOOKING_DEFAULT_MAX_DURATION_MINUTES:-480}
+  BOOKING_REMINDER_LEAD_MINUTES: ${BOOKING_REMINDER_LEAD_MINUTES:-30}
+  AVAILABILITY_SLOT_STEP_MINUTES: ${AVAILABILITY_SLOT_STEP_MINUTES:-30}
+  AVAILABILITY_CACHE_TTL_SECONDS: ${AVAILABILITY_CACHE_TTL_SECONDS:-60}
+  SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+  SECURE_HSTS_INCLUDE_SUBDOMAINS: ${SECURE_HSTS_INCLUDE_SUBDOMAINS:-false}
+  SECURE_HSTS_PRELOAD: ${SECURE_HSTS_PRELOAD:-false}
+  SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-false}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+  CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-false}
+
+x-app-service: &app-service
+  build: .
+  environment: *app-environment
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *app-service
+    command: api
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *app-service
+    command: worker
+    depends_on:
+      api:
+        condition: service_healthy
+
+  beat:
+    <<: *app-service
+    command: beat
+    depends_on:
+      api:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: booking
+      POSTGRES_USER: booking
+      POSTGRES_PASSWORD: local-only-booking
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booking -d booking"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
